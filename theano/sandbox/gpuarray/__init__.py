@@ -35,7 +35,12 @@ def init_dev(dev):
     global pygpu_activated
     context = pygpu.init(dev)
     pygpu.set_default_context(context)
+    if config.print_active_device:
+        print "Using compute device %s: %s" % (dev, context.devname)
     pygpu_activated = True
+    init_dev.device = dev
+
+init_dev.device = None
 
 if pygpu:
     try:
