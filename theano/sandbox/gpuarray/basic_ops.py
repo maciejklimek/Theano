@@ -536,7 +536,6 @@ class GpuAlloc(HideC, Alloc):
     def __init__(self, memset_0=False):
         """memset_0 is only an optimized version. True, it mean the
         value is always 0, so the c code call memset as it is faster.
-
         """
         self.memset_0 = memset_0
 
@@ -632,11 +631,14 @@ class GpuAlloc(HideC, Alloc):
                                  PyGpuArray_SIZE(%(zz)s));
                     %(fail)s;
                 }
-            }
-            else if (GpuArray_setarray(&%(zz)s->ga, &%(vv)s->ga) !=
-                     GA_NO_ERROR) {
-                PyErr_SetString(PyExc_ValueError, "setarray failed");
-                %(fail)s
+            } else {
+                int err;
+                if ((err = GpuArray_setarray(&%(zz)s->ga, &%(vv)s->ga)) !=
+                    GA_NO_ERROR) {
+                    PyErr_Format(PyExc_ValueError, "setarray failed: %%s",
+                                 GpuArray_error(&%(zz)s->ga, err));
+                    %(fail)s
+                }
             }
         }
         """ % dict(name=name, ndim=ndim, zz=zz, vv=vv,
@@ -648,7 +650,7 @@ class GpuAlloc(HideC, Alloc):
         return code
 
     def c_code_cache_version(self):
-        return (2,)
+        return (3,)
 
 gpu_alloc = GpuAlloc()
 
