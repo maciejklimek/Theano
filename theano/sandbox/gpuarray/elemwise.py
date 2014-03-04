@@ -8,7 +8,7 @@ from theano import scalar as scal
 from theano.scalar import Scalar
 from theano.tensor.elemwise import (Elemwise, DimShuffle,
                                     CAReduce, CAReduceDtype)
-from theano.sandbox.cuda.nvcc_compiler import NVCC_compiler
+from theano.sandbox.gpuarray.comp import NVCC_compiler
 
 try:
     import pygpu
