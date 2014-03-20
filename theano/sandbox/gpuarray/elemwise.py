@@ -214,7 +214,7 @@ class GpuElemwise(HideC, Elemwise):
 """
         res = [CLUDA_PREAMBLE]
         for i in range(0, nd + 1):
-            res.append(k.render_basic(i, name="elem_" + str(i)) + ';')
+            res.append(k.render_basic(i, name="elem_" + nodename + '_' + str(i)) + ';')
         res.append(k.contig_src + ';')
 
         return '\n'.join(res)
@@ -377,7 +377,7 @@ class GpuElemwise(HideC, Elemwise):
                 //std::cerr << "calling callkernel returned\\n";
         """ % locals()
 
-        code += "elem_%(nd)s<<<n_blocks, threads_per_block>>>(numEls,\n" % locals()
+        code += "elem_%(name)s_%(nd)s<<<n_blocks, threads_per_block>>>(numEls,\n" % locals()
         param = []
         for i in range(nd):
             param.append("%(z)s->ga.dimensions[%(i)d]" % dict(z=outputs[0],
@@ -426,7 +426,7 @@ class GpuElemwise(HideC, Elemwise):
     def c_code_cache_version(self):
         ver = self.scalar_op.c_code_cache_version()
         if ver:
-            return (2, ver)
+            return (3, ver)
         else:
             return ver
 
