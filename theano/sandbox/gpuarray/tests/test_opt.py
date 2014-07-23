@@ -3,16 +3,15 @@ import numpy
 import theano
 from theano import tensor
 from theano.tests import unittest_tools as utt
-import theano.sandbox.gpuarray
-from theano.sandbox.gpuarray.type import GpuArrayType
-from theano.sandbox.gpuarray.basic_ops import (
-    GpuAlloc, GpuReshape, gpu_alloc, gpu_from_host, host_from_gpu)
-from theano.sandbox.gpuarray.elemwise import GpuCAReduceCuda, GpuElemwise
-from theano.sandbox.gpuarray.tests.test_basic_ops import (
-    rand_gpuarray, mode_with_gpu, mode_without_gpu
-    )
 from theano.tests.unittest_tools import SkipTest
 from theano.tensor.tests.test_basic import TestSpecifyShape
+
+from ..type import GpuArrayType
+from ..basic_ops import (GpuAlloc, GpuReshape, gpu_alloc,
+                         gpu_from_host, host_from_gpu)
+from ..elemwise import GpuCAReduceCuda, GpuElemwise
+from .test_basic_ops import rand_gpuarray, mode_with_gpu, mode_without_gpu
+
 
 
 def test_flatten():

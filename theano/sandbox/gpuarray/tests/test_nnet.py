@@ -6,15 +6,13 @@ from theano.gof.python25 import any
 import theano.tensor as T
 import theano.tests.unittest_tools as utt
 
-from theano.sandbox import gpuarray
-
 # We let that import do the init of the back-end if needed.
-from theano.sandbox.gpuarray.tests.test_basic_ops import (mode_with_gpu,
-                                                          mode_without_gpu)
+from .test_basic_ops import (mode_with_gpu,
+                             mode_without_gpu)
 
-from theano.sandbox.gpuarray.nnet import (
-    GpuCrossentropySoftmaxArgmax1HotWithBias,
-    GpuCrossentropySoftmax1HotWithBiasDx)
+from ..nnet import (GpuCrossentropySoftmaxArgmax1HotWithBias,
+                    GpuCrossentropySoftmax1HotWithBiasDx,
+                    GpuSoftmaxWithBias, GpuSoftmax)
 
 
 def test_GpuCrossentropySoftmaxArgmax1HotWithBias():
@@ -202,7 +200,7 @@ def softmax_with_bias_unittest_template(dtypeInput, dtypeBias):
     f_gpu = theano.function([x], z, mode=mode_with_gpu)
     assert f.maker.fgraph.toposort()[-1].op == T.nnet.softmax_with_bias
     assert isinstance(f_gpu.maker.fgraph.toposort()[-2].op,
-                      theano.sandbox.gpuarray.nnet.GpuSoftmaxWithBias)
+                      GpuSoftmaxWithBias)
 
     def cmp(n, m):
         #print "test_softmax",n,m
@@ -258,7 +256,7 @@ def softmax_unittest_template(dtypeInput):
     f_gpu = theano.function([x], z, mode=mode_with_gpu)
     assert f.maker.fgraph.toposort()[-1].op == T.nnet.softmax
     assert isinstance(f_gpu.maker.fgraph.toposort()[-2].op,
-                      theano.sandbox.gpuarray.nnet.GpuSoftmax)
+                      GpuSoftmax)
 
     def cmp(n, m):
         if dtypeInput == 'float32':

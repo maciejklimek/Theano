@@ -13,15 +13,15 @@ from theano.tensor.tests.test_basic import (
 from theano.tests.unittest_tools import SkipTest
 from numpy.testing.noseclasses import KnownFailureTest
 
-import theano.sandbox.gpuarray
+from ... import gpuarray as mod
 
-if theano.sandbox.gpuarray.pygpu is None:
+if mod.pygpu is None:
     raise SkipTest("pygpu not installed")
 
 # If you are writing a new test file, don't copy this code, but rather
 # import stuff from this file (like mode_with_gpu) to reuse it.
 import theano.sandbox.cuda as cuda_ndarray
-if cuda_ndarray.cuda_available and not theano.sandbox.gpuarray.pygpu_activated:
+if cuda_ndarray.cuda_available and not mod.pygpu_activated:
     if not cuda_ndarray.use.device_number:
         #We should not enable all the use like the flag device=gpu,
         #as many tests don't work in that setup.
@@ -29,14 +29,14 @@ if cuda_ndarray.cuda_available and not theano.sandbox.gpuarray.pygpu_activated:
                          default_to_move_computation_to_gpu=False,
                          move_shared_float32_to_gpu=False,
                          enable_cuda=False)
-    theano.sandbox.gpuarray.init_dev('cuda')
+    mod.init_dev('cuda')
 
-if not theano.sandbox.gpuarray.pygpu_activated:
+if not mod.pygpu_activated:
     raise SkipTest("pygpu disabled")
 
-from theano.sandbox.gpuarray.type import (GpuArrayType,
-                                          gpuarray_shared_constructor)
-from theano.sandbox.gpuarray.basic_ops import (
+from ..type import (GpuArrayType,
+                    gpuarray_shared_constructor)
+from ..basic_ops import (
     host_from_gpu, gpu_from_host,
     gpu_alloc, GpuAlloc,
     gpu_from_cuda,
@@ -335,11 +335,11 @@ class G_reshape(T_reshape):
                            mode=mode_with_gpu,
                            # avoid errors with limited devices
 #                             dtype='float32',
-                             ignore_topo=(HostFromGpu, GpuFromHost,
-                                          theano.compile.DeepCopyOp,
-                                          theano.sandbox.gpuarray.elemwise.GpuElemwise,
-                                          theano.tensor.opt.Shape_i,
-                                          theano.tensor.opt.MakeVector))
+                           ignore_topo=(HostFromGpu, GpuFromHost,
+                                        theano.compile.DeepCopyOp,
+                                        mod.elemwise.GpuElemwise,
+                                        theano.tensor.opt.Shape_i,
+                                        theano.tensor.opt.MakeVector))
         assert self.op == GpuReshape
 
 
@@ -431,13 +431,11 @@ def test_hostfromgpu_shape_i():
     m = mode_with_gpu.including('local_dot_to_dot22',
                                 'local_dot22_to_dot22scalar','specialize')
     a = T.fmatrix('a')
-    ca = theano.sandbox.gpuarray.type.GpuArrayType('float32', (False, False))()
+    ca = GpuArrayType('float32', (False, False))()
     av = numpy.asarray(numpy.random.rand(5, 4), dtype='float32')
     cv = gpuarray.asarray(numpy.random.rand(5, 4),
                           dtype='float32')
 
-    gpu_from_host = theano.sandbox.gpuarray.basic_ops.gpu_from_host
-    host_from_gpu = theano.sandbox.gpuarray.basic_ops.host_from_gpu
     f = theano.function([a], gpu_from_host(a), mode=m)
     assert gpu_from_host in [x.op
                              for x in f.maker.fgraph.toposort()]

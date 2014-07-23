@@ -3,7 +3,7 @@ import logging
 
 import theano
 from theano.configparser import config, AddConfigVar, BoolParam
-from theano.compile import optdb
+from theano.compile import optdb, shared_constructor
 
 _logger_name = 'theano.sandbox.gpuarray'
 _logger = logging.getLogger(_logger_name)
@@ -13,6 +13,7 @@ error = _logger.error
 info = _logger.info
 
 pygpu_activated = False
+
 try:
     import pygpu
     import pygpu.gpuarray
@@ -27,9 +28,9 @@ AddConfigVar('gpuarray.sync',
              in_c_key=True)
 
 # This is for documentation not to depend on the availability of pygpu
-from type import (GpuArrayType, GpuArrayVariable, GpuArrayConstant,
-                  GpuArraySharedVariable, gpuarray_shared_constructor)
-import opt
+from .type import (GpuArrayType, GpuArrayVariable, GpuArrayConstant,
+                   GpuArraySharedVariable, gpuarray_shared_constructor)
+from . import opt
 
 
 def init_dev(dev):
@@ -49,8 +50,7 @@ if pygpu:
         if (config.device.startswith('cuda') or
             config.device.startswith('opencl')):
             init_dev(config.device)
-            import theano.compile
-            theano.compile.shared_constructor(gpuarray_shared_constructor)
+            shared_constructor(gpuarray_shared_constructor)
             optdb.add_tags('gpuarray_opt', 'fast_run', 'fast_compile', 'inplace')
         elif config.gpuarray.init_device != '':
             init_dev(config.gpuarray.init_device)
