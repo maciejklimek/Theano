@@ -35,6 +35,7 @@ from .subtensor import (GpuIncSubtensor, GpuSubtensor,
                         GpuAdvancedIncSubtensor1,
                         GpuAdvancedIncSubtensor1_dev20)
 from .type import GpuArrayConstant
+from .context import get_context
 
 gpu_optimizer = EquilibriumDB()
 gpu_cut_copies = EquilibriumDB()
@@ -64,7 +65,7 @@ register_opt()(theano.tensor.opt.local_track_shape_i)
 
 def safe_to_gpu(x):
     if isinstance(x.type, tensor.TensorType):
-        return gpu_from_host(x)
+        return gpu_from_host(x, get_context(None))
     else:
         return x
 
@@ -124,7 +125,8 @@ class InputToGpuOptimizer(Optimizer):
                 continue
 
             try:
-                new_input = host_from_gpu(gpu_from_host(input))
+                new_input = host_from_gpu(gpu_from_host(input,
+                                                        get_context(None)))
                 fgraph.replace_validate(input, new_input,
                                         "InputToGpuOptimizer")
             except TypeError, e:
@@ -138,6 +140,8 @@ gpu_seqopt.register('InputToGpuArrayOptimizer', InputToGpuOptimizer(),
 @local_optimizer([gpu_from_host, host_from_gpu])
 def local_cut_gpu_host_gpu(node):
     if tensor.opt.opt.check_chain(node, gpu_from_host, host_from_gpu):
+        # TODO revise when more than one context is avaiable
+        # this could reasonably move the data from one context to another
         return [node.inputs[0].owner.inputs[0]]
     if tensor.opt.opt.check_chain(node, host_from_gpu, gpu_from_host):
         return [node.inputs[0].owner.inputs[0]]
@@ -166,13 +170,14 @@ def local_gpuaalloc2(node):
                 i.owner.op in [host_from_gpu, tensor.alloc]
                 for i in c.inputs[1:])
             for c, idx in node.outputs[0].clients)):
-        return [host_from_gpu(gpu_alloc(*node.inputs))]
+        return [host_from_gpu(gpu_alloc(node.inputs[0], get_context(None),
+                                        *node.inputs[1:]))]
 
 
 @register_opt()
 @op_lifter([tensor.Alloc])
 def local_gpuaalloc(node):
-    new_out = gpu_alloc(*node.inputs)
+    new_out = gpu_alloc(node.inputs[0], get_context(None), *node.inputs)
     # We need to hide new broadcastable dimensions because
     # ReplaceValidate doesn't like when they change.
     if new_out.broadcastable != node.outputs[0].broadcastable:
@@ -193,7 +198,9 @@ def local_gpualloc_memset_0(node):
         if (isinstance(inp, GpuArrayConstant) and
             inp.data.size == 1 and
             (numpy.asarray(inp.data) == 0).all()):
-            new_out = GpuAlloc(memset_0=True)(*node.inputs)
+            new_out = GpuAlloc(memset_0=True)(node.inputs[0],
+                                              get_context(None),
+                                              *node.inputs[1:])
             return [new_out]
 
 
@@ -283,7 +290,7 @@ def local_gpua_dimshuffle(node):
 def local_gpua_specifyShape(node):
     if isinstance(node.inputs[0].type, GpuArrayType):
         return
-    inp = [gpu_from_host(node.inputs[0])] + node.inputs[1:]
+    inp = [gpu_from_host(node.inputs[0], get_context(None))] + node.inputs[1:]
     return tensor.specify_shape(*inp)
 
 
@@ -373,7 +380,8 @@ def local_gpua_careduce(node):
         gvar = greduce(x)
         # We need to have the make node called, otherwise the mask can
         # be None
-        if gvar.owner.op.supports_c_code([gpu_from_host(x)]):
+        if gvar.owner.op.supports_c_code([gpu_from_host(x,
+                                                        get_context(None))]):
             return greduce
         else:
             # Try to make a simpler pattern based on reshaping
@@ -413,7 +421,7 @@ def local_gpua_careduce(node):
                 acc_dtype=getattr(node.op, 'acc_dtype', None))
 
             reshaped_x = x.reshape(tensor.stack(*new_in_shp))
-            gpu_reshaped_x = gpu_from_host(reshaped_x)
+            gpu_reshaped_x = gpu_from_host(reshaped_x, get_context(None))
             gvar = greduce(gpu_reshaped_x)
             # We need to have the make node called, otherwise the mask can
             # be None
@@ -524,7 +532,7 @@ def local_gpu_conv(node):
                                        img.shape[0], *op.imshp_logical)
                     img = tensor.set_subtensor(buf[:, :, ::rstride, ::cstride],
                                                img)
-                    img = gpu_from_host(img)
+                    img = gpu_from_host(img, get_context(None))
                     return ret(img, kern)
 
                 return make_graph
@@ -550,15 +558,15 @@ def local_gpu_conv(node):
     gpu_conv = GpuConvOp_from_ConvOp(node.op)
     if gpu_conv is None:
         return
-    out = gpu_conv(gpu_from_host(img),
-                   gpu_from_host(kern))
+    out = gpu_conv(gpu_from_host(img, get_context(None)),
+                   gpu_from_host(kern, get_context(None)))
     # in some case the ConvOp broadcast the last 2 dimensions
     # differently then the gpu ConvOp
     out = tensor.patternbroadcast(
         host_from_gpu(out),
         node.outputs[0].broadcastable)
     # op_lifter want the output on the GPU.
-    out = gpu_from_host(out)
+    out = gpu_from_host(out, get_context(None))
     out.values_eq_approx = values_eq_approx
     return [out]
 

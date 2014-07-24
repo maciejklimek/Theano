@@ -30,16 +30,17 @@ AddConfigVar('gpuarray.sync',
 # This is for documentation not to depend on the availability of pygpu
 from .type import (GpuArrayType, GpuArrayVariable, GpuArrayConstant,
                    GpuArraySharedVariable, gpuarray_shared_constructor)
-from . import opt
+from . import opt, context
 
 
 def init_dev(dev):
     global pygpu_activated
-    context = pygpu.init(dev)
-    pygpu.set_default_context(context)
+    ctx = pygpu.init(dev)
+    context.register_context(ctx, None)
+    pygpu.set_default_context(ctx)
     pygpu_activated = True
     if config.print_active_device:
-        print >> sys.stderr, "Using device %s: %s" % (dev, context.devname)
+        print >> sys.stderr, "Using device %s: %s" % (dev, ctx.devname)
     # remember the active device
     init_dev.device = dev
 

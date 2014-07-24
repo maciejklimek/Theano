@@ -14,6 +14,7 @@ try:
 except ImportError:
     pass
 
+from .context import GpuContextType, get_context
 
 class GpuArrayType(Type):
     def __init__(self, dtype, broadcastable, name=None):
@@ -89,7 +90,8 @@ class GpuArrayType(Type):
                             (str(other.type.broadcastable),
                              str(self.broadcastable)))
 
-        return theano.sandbox.gpuarray.basic_ops.gpu_from_host(other)
+        from .basic_ops import gpu_from_host
+        return gpu_from_host(other, get_context(None))
 
     @staticmethod
     def values_eq(a, b):
@@ -251,6 +253,33 @@ class GpuArrayType(Type):
         return (1, ver[0])
 
 
+class GpuGetContext(Op):
+    def __eq__(self, other):
+        return type(self) == type(other)
+
+    def __hash__(self):
+        return hash(type(self))
+
+    def __str__(self):
+        return "GpuGetContext"
+
+    def make_node(self, x):
+        if not isinstance(x.type, GpuArrayType):
+            raise TypeError(x)
+        return Apply(self, [x], [GpuContextType()])
+
+    def perform(self, node, inp, out):
+        out[0][0] = inp[0].context
+
+    def c_code(self, node, name, inputs, outputs, sub):
+        return "%(out)s = %(x)s->context;" % dict(out=outputs[0], x=inputs[0])
+
+    def c_code_cache_version(self):
+        return (0,)
+
+gpu_get_context = GpuGetContext()
+
+
 class _operators(_tensor_py_operators):
     def _as_TensorVariable(self):
         from basic_ops import host_from_gpu
@@ -258,6 +287,10 @@ class _operators(_tensor_py_operators):
 
     def _as_GpuArrayVariable(self):
         return self
+
+    @property
+    def context(self):
+        return gpu_get_context(self)
 
 
 class GpuArrayVariable(_operators, Variable):

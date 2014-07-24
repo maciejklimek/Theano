@@ -11,8 +11,7 @@ try:
 except ImportError:
     pass
 
-from .basic_ops import (as_gpuarray_variable,
-                        host_from_gpu, gpu_from_host)
+from .basic_ops import as_gpuarray_variable,
 from .opt import register_opt as register_gpu_opt, op_lifter as op_lifter
 from .type import GpuArrayType
 from .comp import NVCC_compiler
