@@ -115,7 +115,7 @@ def _make_context_constant(name):
 class GpuContextConstant(Constant):
     def __init__(self, name):
         try:
-            data = _context[name]
+            data = _contexts[name]
         except KeyError:
             raise ValueError("Undefined context name %r" % (name,))
         Constant.__init__(self, type=GpuContextType(), data=data)

@@ -1,9 +1,9 @@
 import numpy
 
 import theano
-from theano.tensor.var import _tensor_py_operators
-from theano import Type, Variable, Constant, tensor, config, scalar
+from theano import Type, Variable, Constant, Op, tensor, config, scalar
 from theano.compile import SharedVariable
+from theano.tensor.var import _tensor_py_operators
 
 # Make sure this is importable even if pygpu is absent
 # (it will not work though)

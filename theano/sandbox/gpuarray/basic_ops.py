@@ -355,8 +355,8 @@ class GpuFromHost(Op):
         if (%(out)s == NULL) {
             %(fail)s
         }
-        """ % {'name': name, 'inp': inputs[0], 'ctx': inputs[1]
-               'out': outputs[0], 'fail': sub['fail']}
+        """ % dict(name=name, inp=inputs[0], ctx=inputs[1], out=outputs[0],
+                   fail=sub['fail'])
 
     def c_code_cache_version(self):
         return (4,)
@@ -443,26 +443,26 @@ class GpuFromCuda(Op):
             PyErr_SetString(PyExc_ValueError, "Ambient cuda context is not the same as output context.");
             %(fail)s
         }
-        %(name)sdims = (size_t *)calloc(%(in)s->nd, sizeof(size_t));
+        %(name)sdims = (size_t *)calloc(%(inp)s->nd, sizeof(size_t));
         if (%(name)sdims == NULL) {
             PyErr_SetString(PyExc_MemoryError, "Can't allocate dimensions.");
             %(fail)s
         }
-        %(name)sstr = (ssize_t *)calloc(%(in)s->nd, sizeof(ssize_t));
+        %(name)sstr = (ssize_t *)calloc(%(inp)s->nd, sizeof(ssize_t));
         if (%(name)sstr == NULL) {
             free(%(name)sdims);
             PyErr_SetString(PyExc_MemoryError, "Can't allocate strides.");
             %(fail)s
         }
 
-        for (unsigned int i = 0; i < %(in)s->nd; i++) {
-            %(name)sdims[i] = (size_t)CudaNdarray_HOST_DIMS(%(in)s)[i];
-            %(name)sstr[i] = (ssize_t)CudaNdarray_HOST_STRIDES(%(in)s)[i]*4;
+        for (unsigned int i = 0; i < %(inp)s->nd; i++) {
+            %(name)sdims[i] = (size_t)CudaNdarray_HOST_DIMS(%(inp)s)[i];
+            %(name)sstr[i] = (ssize_t)CudaNdarray_HOST_STRIDES(%(inp)s)[i]*4;
         }
 
         %(name)sdata = cuda_make_buf(%(ctx)s->ctx,
-                                     (CUdeviceptr)%(in)s->devdata,
-                                     ((size_t)%(in)s->data_allocated)*4);
+                                     (CUdeviceptr)%(inp)s->devdata,
+                                     ((size_t)%(inp)s->data_allocated)*4);
         if (%(name)sdata == NULL) {
             Py_DECREF(%(out)s);
             free(%(name)sdims);
@@ -471,10 +471,10 @@ class GpuFromCuda(Op):
             %(fail)s
         }
         Py_XDECREF(%(out)s);
-        %(out)s = pygpu_fromgpudata(%(name)sdata, 0, GA_FLOAT, %(in)s->nd,
+        %(out)s = pygpu_fromgpudata(%(name)sdata, 0, GA_FLOAT, %(inp)s->nd,
                                     %(name)sdims, %(name)sstr,
                                     %(ctx)s, 1,
-                                    (PyObject *)%(in)s,
+                                    (PyObject *)%(inp)s,
                                     (PyObject *)&PyGpuArrayType);
         %(ctx)s->ops->buffer_release(%(name)sdata);
         free(%(name)sdims);
@@ -482,7 +482,7 @@ class GpuFromCuda(Op):
         if (%(out)s == NULL) {
             %(fail)s
         }
-        """ % dict(name=name, in=inputs[0], ctx=inputs[1], out=outputs[0],
+        """ % dict(name=name, inp=inputs[0], ctx=inputs[1], out=outputs[0],
                    fail=sub['fail'])
 
     def c_code_cache_version(self):
@@ -585,7 +585,7 @@ class CudaFromGpu(Op):
            %(fail)s
         }
         """ % dict(name=name, inp=inputs[0], out=outputs[0],
-                   fail=sub['fail']}
+                   fail=sub['fail'])
 
     def c_code_cache_version(self):
         return (4,)
