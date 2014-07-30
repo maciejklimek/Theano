@@ -14,7 +14,7 @@ try:
 except ImportError:
     pass
 
-from .context import GpuContextType, get_context
+from .context import GpuContextType, get_context, gpu_get_context
 
 class GpuArrayType(Type):
     def __init__(self, dtype, broadcastable, name=None):
@@ -251,33 +251,6 @@ class GpuArrayType(Type):
         # we only use the major version since the minor revision are
         # API-compatible.
         return (1, ver[0])
-
-
-class GpuGetContext(Op):
-    def __eq__(self, other):
-        return type(self) == type(other)
-
-    def __hash__(self):
-        return hash(type(self))
-
-    def __str__(self):
-        return "GpuGetContext"
-
-    def make_node(self, x):
-        if not isinstance(x.type, GpuArrayType):
-            raise TypeError(x)
-        return Apply(self, [x], [GpuContextType()])
-
-    def perform(self, node, inp, out):
-        out[0][0] = inp[0].context
-
-    def c_code(self, node, name, inputs, outputs, sub):
-        return "%(out)s = %(x)s->context;" % dict(out=outputs[0], x=inputs[0])
-
-    def c_code_cache_version(self):
-        return (0,)
-
-gpu_get_context = GpuGetContext()
 
 
 class _operators(_tensor_py_operators):
