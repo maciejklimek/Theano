@@ -490,7 +490,10 @@ class PureOp(object):
             output (unchanged) when it contains multiple elements.
         """
         return_list = kwargs.pop('return_list', False)
+        context = kwargs.pop('context', None)
         node = self.make_node(*inputs, **kwargs)
+        if node.context is None:
+            node.context = context
         if self.add_stack_trace_on_call:
             self.add_tag_trace(node)
 
@@ -711,7 +714,7 @@ class Op(utils.object2, PureOp, CLinkerOp):
         node_output_storage = [storage_map[r] for r in node.outputs]
         node_input_compute = [compute_map[r] for r in node.inputs]
         node_output_compute = [compute_map[r] for r in node.outputs]
-        #logger.debug('Compiling node %i of graph' % node_idx)
+
         if self._op_use_c_code:
             try:
                 e = FunctionGraph(node.inputs, node.outputs)
@@ -724,7 +727,8 @@ class Op(utils.object2, PureOp, CLinkerOp):
 
                 logger.debug('Trying CLinker.make_thunk')
                 outputs = cl.make_thunk(input_storage=node_input_storage,
-                                        output_storage=node_output_storage)
+                                        output_storage=node_output_storage,
+                                        context=node.context)
                 fill_storage, node_input_filters, node_output_filters = outputs
 
                 def rval():

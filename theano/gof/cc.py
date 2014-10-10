@@ -535,6 +535,7 @@ class CLinker(link.Linker):
         blocks = []
 
         failure_var = "__failure"
+        context_var = "context"
         id = 1
 
         for variable in self.variables:
@@ -639,10 +640,13 @@ class CLinker(link.Linker):
             sub['id'] = id
             sub['struct_id'] = id + 1
             sub['fail'] = failure_code(sub)
+            sub['context'] = context_var
 
             sub_struct = dict()
             sub_struct['id'] = id + 1
+            sub_struct['name'] = name
             sub_struct['fail'] = failure_code_init(sub)
+            sub_struct['context'] = context_var
 
             struct_support = ""
             struct_init = ""
@@ -671,7 +675,8 @@ class CLinker(link.Linker):
                     " didn't return a string for c_init_code_apply")
 
             try:
-                struct_init = op.c_init_code_struct(node, id + 1, sub_struct)
+                struct_init = op.c_init_code_struct(node, id + 1, name,
+                                                    sub_struct)
                 assert isinstance(struct_init, basestring), (
                     str(node.op) +
                     " didn't return a string for c_init_code_struct")
@@ -679,7 +684,7 @@ class CLinker(link.Linker):
                 pass
 
             try:
-                struct_support = op.c_support_code_struct(node, id + 1)
+                struct_support = op.c_support_code_struct(node, id + 1, name)
                 assert isinstance(struct_support, basestring), (
                     str(node.op) +
                     " didn't return a string for c_support_code_struct")
@@ -687,7 +692,7 @@ class CLinker(link.Linker):
                 pass
 
             try:
-                struct_cleanup = op.c_cleanup_code_struct(node, id + 1)
+                struct_cleanup = op.c_cleanup_code_struct(node, id + 1, name)
                 assert isinstance(struct_cleanup, basestring), (
                     str(node.op) +
                     " didn't return a string for c_cleanup_code_struct")
@@ -729,7 +734,7 @@ class CLinker(link.Linker):
         # are mapped to the same name.  Duplicates are defined by (a
         # is b), rather than (a==b) since Constant instances can
         # compare equal to equivalent Constant instances.
-        args = []
+        args = ['context']
         args += ["storage_%s" % symbol[variable] for variable
                  in utils.uniq(self.inputs + self.outputs + self.orphans)]
 
@@ -933,7 +938,7 @@ class CLinker(link.Linker):
         return utils.uniq(ret)
 
     def __compile__(self, input_storage=None,
-                    output_storage=None, keep_lock=False):
+                    output_storage=None, context=None, keep_lock=False):
         """WRITEME
         Compiles this linker's fgraph.
 
@@ -962,6 +967,7 @@ class CLinker(link.Linker):
         thunk = self.cthunk_factory(error_storage,
                                     input_storage,
                                     output_storage,
+                                    context=context,
                                     keep_lock=keep_lock)
         return (thunk,
                 [link.Container(input, storage) for input, storage in
@@ -994,7 +1000,7 @@ class CLinker(link.Linker):
         return init_tasks, tasks
 
     def make_thunk(self, input_storage=None, output_storage=None,
-                   keep_lock=False):
+                   context=None, keep_lock=False):
         """WRITEME
         Compiles this linker's fgraph and returns a function to perform the
         computations, as well as lists of storage cells for both the
@@ -1007,6 +1013,7 @@ class CLinker(link.Linker):
         @param output_storage: list of lists of length 1. The thunk returned
             by __compile__ will put the variables of the computation in these
             lists. If None, storage will be allocated.
+        @param context: object representing the execution context for the node.
 
         Returns: thunk, input_storage, output_storage
 
@@ -1020,7 +1027,7 @@ class CLinker(link.Linker):
         init_tasks, tasks = self.get_init_tasks()
         cthunk, in_storage, out_storage, error_storage = self.__compile__(
             input_storage, output_storage,
-            keep_lock=keep_lock)
+            context=context, keep_lock=keep_lock)
 
         res = _CThunk(cthunk, init_tasks, tasks, error_storage)
         res.nodes = self.node_order
@@ -1379,7 +1386,7 @@ class CLinker(link.Linker):
         return mod
 
     def cthunk_factory(self, error_storage, in_storage, out_storage,
-                       keep_lock=False):
+                       context=None, keep_lock=False):
         """WRITEME
         error_storage -> list of length 3
         in_storage -> list of lists of length 1, one per input
@@ -1413,8 +1420,8 @@ class CLinker(link.Linker):
         in_storage = [x for i, x in enumerate(in_storage) if i not in dupidx]
         orphd = [[orphan.data] for orphan in self.orphans]
 
-        ret = module.instantiate(error_storage, *(in_storage + out_storage +
-                                                  orphd))
+        ret = module.instantiate(error_storage, context,
+                                 *(in_storage + out_storage + orphd))
 
         return ret
 

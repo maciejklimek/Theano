@@ -49,6 +49,7 @@ from theano.tests import unittest_tools as utt
 utt.seed_rng()
 rng = numpy.random.RandomState(seed=utt.fetch_seed())
 
+import pygpu
 from pygpu import gpuarray
 
 if theano.config.mode == 'FAST_COMPILE':
@@ -438,6 +439,20 @@ def test_gpueye():
         yield check, dtype, 3, 5
         yield check, dtype, 5, 3
 
+
+def test_gpueye_context():
+    ctx = pygpu.init('opencl0:0')
+    Ns = T.iscalar()
+    Ms = T.iscalar()
+    ks = numpy.asarray(0)
+
+    e = GpuEye('float32')(Ns, Ms, ks, context=ctx)
+
+    f = theano.function([Ns, Ms], e)
+
+    result = numpy.array(f(5, 5))
+
+    import pdb; pdb.set_trace()
 
 def test_hostfromgpu_shape_i():
     """

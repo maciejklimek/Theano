@@ -67,7 +67,7 @@ class Apply(Node):
 
     """
 
-    def __init__(self, op, inputs, outputs):
+    def __init__(self, op, inputs, outputs, context=None):
         """Initialize attributes
 
         :Parameters:
@@ -89,6 +89,7 @@ class Apply(Node):
         self.op = op
         self.inputs = []
         self.tag = utils.scratchpad()
+        self.context = context
 
         if not isinstance(inputs, (list, tuple)):
             raise TypeError("The inputs of an Apply must be a list or tuple")
@@ -184,7 +185,7 @@ class Apply(Node):
         :note:
             tags are copied from self to the returned instance.
         """
-        cp = self.__class__(self.op, self.inputs, [output.clone() for output in self.outputs])
+        cp = self.__class__(self.op, self.inputs, [output.clone() for output in self.outputs], self.context)
         cp.tag = copy(self.tag)
         return cp
 
@@ -220,6 +221,8 @@ class Apply(Node):
                     remake_node = True
         if remake_node:
             new_node = self.op.make_node(*new_inputs)
+            if new_node.context is None:
+                new_node.context = self.context
             new_node.tag = copy(self.tag).__update__(new_node.tag)
         else:
             new_node = self.clone()
