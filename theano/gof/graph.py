@@ -67,7 +67,7 @@ class Apply(Node):
 
     """
 
-    def __init__(self, op, inputs, outputs, context=None):
+    def __init__(self, op, inputs, outputs):
         """Initialize attributes
 
         :Parameters:
@@ -89,7 +89,6 @@ class Apply(Node):
         self.op = op
         self.inputs = []
         self.tag = utils.scratchpad()
-        self.context = context
 
         if not isinstance(inputs, (list, tuple)):
             raise TypeError("The inputs of an Apply must be a list or tuple")
@@ -115,6 +114,13 @@ class Apply(Node):
                 self.outputs.append(output)
             else:
                 raise TypeError("The 'outputs' argument to Apply must contain Variable instances with no owner, not %s" % output)
+
+    def run_context(self):
+        """Returns the context for the node, or None if no context is set.
+        """
+        if hasattr(self.op, 'get_context'):
+            return self.op.get_context(self)
+        return None
 
     def default_output(self):
         """Returns the default output for this node.
@@ -222,8 +228,6 @@ class Apply(Node):
                     remake_node = True
         if remake_node:
             new_node = self.op.make_node(*new_inputs)
-            if new_node.context is None:
-                new_node.context = self.context
             new_node.tag = copy(self.tag).__update__(new_node.tag)
         else:
             new_node = self.clone()
@@ -239,6 +243,8 @@ class Apply(Node):
 
     nout = property(lambda self: len(self.outputs), doc='same as len(self.outputs)')
     """property: Number of outputs"""
+
+    context_type = property(lambda self: self.op.context_type, doc='type to use for the context')
 
 
 class Variable(Node):

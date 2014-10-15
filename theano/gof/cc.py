@@ -482,11 +482,31 @@ class CLinker(link.Linker):
         self.inputs = fgraph.inputs
         self.outputs = fgraph.outputs
 
+        self.node_order = self.schedule(fgraph)
+
         # list(fgraph.variables)
-        # We need to include the not used inputs in our variables,
+        # We need to include the unused inputs in our variables,
         # otherwise we can't pass them to the module.
         self.variables = [var for var in self.inputs if not len(var.clients)]
         self.variables += graph.variables(self.inputs, self.outputs)
+
+        # This adds a hidden input which is the context for each node
+        # that needs it
+        self.contexts = dict()
+        for node in self.node_order:
+            ctx = node.run_context()
+            if ctx is not None:
+                # try to avoid creating more than one variable for the
+                # same context.
+                if ctx in self.contexts:
+                    var = self.contexts[ctx]
+                    assert var.type == node.context_type
+                    var.clients.append((node, 'context'))
+                else:
+                    var = graph.Constant(node.context_type, ctx)
+                    var.clients = [(node, 'context')]
+                    self.contexts[ctx] = var
+                    self.variables.append(var)
 
         # The orphans field is listified to ensure a consistent order.
         #list(fgraph.orphans.difference(self.outputs))
@@ -496,7 +516,6 @@ class CLinker(link.Linker):
         self.temps = list(set(self.variables).difference(
                 self.inputs).difference(self.outputs).difference(self.orphans))
         self.consts = []
-        self.node_order = self.schedule(fgraph)
 
     def code_gen(self):
         """WRITEME
@@ -535,7 +554,6 @@ class CLinker(link.Linker):
         blocks = []
 
         failure_var = "__failure"
-        context_var = "context"
         id = 1
 
         for variable in self.variables:
@@ -622,8 +640,12 @@ class CLinker(link.Linker):
             id += 2
 
         for node_num, node in enumerate(self.node_order):
-            # Why is this here?
+
             sub = dict(failure_var=failure_var)
+
+            ctx = node.run_context()
+            if ctx is not None:
+                context_var = symbol[self.contexts[ctx]]
 
             # The placeholder will be replaced by a hash of the entire
             # code (module + support code) in DynamicModule.code.
@@ -639,12 +661,16 @@ class CLinker(link.Linker):
             # Make the CodeBlock for c_code
             sub['id'] = id
             sub['fail'] = failure_code(sub)
-            sub['context'] = context_var
+            if ctx is not None:
+                sub['context'] = context_var
 
             sub_struct = dict()
             sub_struct['id'] = id + 1
             sub_struct['fail'] = failure_code_init(sub)
-            sub_struct['context'] = context_var
+            if ctx is not None:
+                # Since context inputs are always constants they are
+                # guarenteed to be available in the struct init code.
+                sub_struct['context'] = context_var
 
             struct_support = ""
             struct_init = ""
@@ -731,7 +757,7 @@ class CLinker(link.Linker):
         # are mapped to the same name.  Duplicates are defined by (a
         # is b), rather than (a==b) since Constant instances can
         # compare equal to equivalent Constant instances.
-        args = ['context']
+        args = []
         args += ["storage_%s" % symbol[variable] for variable
                  in utils.uniq(self.inputs + self.outputs + self.orphans)]
 
@@ -935,7 +961,7 @@ class CLinker(link.Linker):
         return utils.uniq(ret)
 
     def __compile__(self, input_storage=None,
-                    output_storage=None, context=None, keep_lock=False):
+                    output_storage=None, keep_lock=False):
         """WRITEME
         Compiles this linker's fgraph.
 
@@ -964,7 +990,6 @@ class CLinker(link.Linker):
         thunk = self.cthunk_factory(error_storage,
                                     input_storage,
                                     output_storage,
-                                    context=context,
                                     keep_lock=keep_lock)
         return (thunk,
                 [link.Container(input, storage) for input, storage in
@@ -997,7 +1022,7 @@ class CLinker(link.Linker):
         return init_tasks, tasks
 
     def make_thunk(self, input_storage=None, output_storage=None,
-                   context=None, keep_lock=False):
+                   keep_lock=False):
         """WRITEME
         Compiles this linker's fgraph and returns a function to perform the
         computations, as well as lists of storage cells for both the
@@ -1010,7 +1035,6 @@ class CLinker(link.Linker):
         @param output_storage: list of lists of length 1. The thunk returned
             by __compile__ will put the variables of the computation in these
             lists. If None, storage will be allocated.
-        @param context: object representing the execution context for the node.
 
         Returns: thunk, input_storage, output_storage
 
@@ -1024,7 +1048,7 @@ class CLinker(link.Linker):
         init_tasks, tasks = self.get_init_tasks()
         cthunk, in_storage, out_storage, error_storage = self.__compile__(
             input_storage, output_storage,
-            context=context, keep_lock=keep_lock)
+            keep_lock=keep_lock)
 
         res = _CThunk(cthunk, init_tasks, tasks, error_storage)
         res.nodes = self.node_order
@@ -1383,7 +1407,7 @@ class CLinker(link.Linker):
         return mod
 
     def cthunk_factory(self, error_storage, in_storage, out_storage,
-                       context=None, keep_lock=False):
+                       keep_lock=False):
         """WRITEME
         error_storage -> list of length 3
         in_storage -> list of lists of length 1, one per input
@@ -1417,7 +1441,7 @@ class CLinker(link.Linker):
         in_storage = [x for i, x in enumerate(in_storage) if i not in dupidx]
         orphd = [[orphan.data] for orphan in self.orphans]
 
-        ret = module.instantiate(error_storage, context,
+        ret = module.instantiate(error_storage,
                                  *(in_storage + out_storage + orphd))
 
         return ret

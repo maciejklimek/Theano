@@ -484,10 +484,7 @@ class PureOp(object):
             output (unchanged) when it contains multiple elements.
         """
         return_list = kwargs.pop('return_list', False)
-        context = kwargs.pop('context', None)
         node = self.make_node(*inputs, **kwargs)
-        if node.context is None:
-            node.context = context
         if self.add_stack_trace_on_call:
             self.add_tag_trace(node)
 
@@ -721,8 +718,7 @@ class Op(utils.object2, PureOp, CLinkerOp):
 
                 logger.debug('Trying CLinker.make_thunk')
                 outputs = cl.make_thunk(input_storage=node_input_storage,
-                                        output_storage=node_output_storage,
-                                        context=node.context)
+                                        output_storage=node_output_storage)
                 fill_storage, node_input_filters, node_output_filters = outputs
 
                 def rval():
