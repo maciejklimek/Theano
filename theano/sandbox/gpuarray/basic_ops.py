@@ -181,7 +181,7 @@ class GpuKernelBase(object):
         return '\n'.join([bins, codes])
 
 
-    def c_support_code_struct(self, node, struct_id, name):
+    def c_support_code_struct(self, node, name):
         kernels = self.gpu_kernels(node, name)
         vars = '\n'.join(self._generate_kernel_vars(k) for k in kernels)
         return vars
@@ -210,35 +210,24 @@ class GpuKernelBase(object):
             ovar=k.objvar, kname=k.name, cname=k.codevar,
             flags=k._get_c_flags(), fail=fail, ctx=ctx)
 
-    def c_init_code_struct(self, node, struct_id, name, sub):
-        ctx = 'ctx_' + str(struct_id)
+    def c_init_code_struct(self, node, name, sub):
+        ctx = sub['context']
         kernels = self.gpu_kernels(node, name)
         inits_0 = '\n'.join(self._generate_zeros(k) for k in kernels)
-        start = """
-PyGpuContextObject *%(ctx)s;
-if (%(arg_ctx)s == Py_None)
-  %(ctx)s = pygpu_default_context();
-else if (Py_TYPE(%(arg_ctx)s) == &PyGpuContextType)
-  %(ctx)s = (PyGpuContextObject *)%(arg_ctx)s;
-else {
-  PyErr_SetString(PyExc_TypeError, "Unexpected type for the context");
-  %(fail)s
-}
-""" % dict(ctx=ctx, arg_ctx=sub['context'], fail=sub['fail'])
         inits = '\n'.join(self._generate_kernel_init(k, sub['fail'], ctx)
                           for k in kernels)
-        return '\n'.join([inits_0, start, inits])
+        return '\n'.join([inits_0, inits])
 
     def _generate_kernel_cleanup(self, k):
         return """GpuKernel_clear(&%(ovar)s);""" % dict(ovar=k.objvar)
 
-    def c_cleanup_code_struct(self, node, struct_id, name):
+    def c_cleanup_code_struct(self, node, name):
         kernels = self.gpu_kernels(node, name)
         cleanups = '\n'.join(self._generate_kernel_cleanup(k) for k in kernels)
         return cleanups
 
     def _GpuKernelBase_version(self):
-        return (2,0,5)
+        return (2,0,6)
 
     GpuKernelBase_version = property(_GpuKernelBase_version)
 
