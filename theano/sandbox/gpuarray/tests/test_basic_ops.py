@@ -34,16 +34,15 @@ if cuda_ndarray.cuda_available and not theano.sandbox.gpuarray.pygpu_activated:
 if not theano.sandbox.gpuarray.pygpu_activated:
     raise SkipTest("pygpu disabled")
 
-from theano.sandbox.gpuarray.type import (GpuArrayType,
-                                          gpuarray_shared_constructor)
-from theano.sandbox.gpuarray.basic_ops import (
+from ..type import (GpuArrayType, reg_context, gpuarray_shared_constructor)
+from ..basic_ops import (
     host_from_gpu, gpu_from_host,
     gpu_alloc, GpuAlloc,
     gpu_from_cuda,
     cuda_from_gpu, HostFromGpu,
     GpuFromHost, GpuReshape,
     gpu_join, GpuJoin, GpuSplit, GpuEye, gpu_contiguous)
-from theano.sandbox.gpuarray.subtensor import GpuSubtensor
+from ..subtensor import GpuSubtensor
 
 from theano.tests import unittest_tools as utt
 utt.seed_rng()
@@ -442,11 +441,12 @@ def test_gpueye():
 
 def test_gpueye_context():
     ctx = pygpu.init('opencl0:0')
+    reg_context('dev2', ctx, 'opencl0:0')
     Ns = T.iscalar()
     Ms = T.iscalar()
     ks = numpy.asarray(0)
 
-    e = GpuEye('float32')(Ns, Ms, ks, context=ctx)
+    e = GpuEye('float32', context='dev2')(Ns, Ms, ks)
 
     f = theano.function([Ns, Ms], e)
 
