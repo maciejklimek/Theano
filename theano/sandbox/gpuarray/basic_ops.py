@@ -938,7 +938,7 @@ if (%(out)s == NULL)
                    restype=restype, ctx=sub['context'])
 
 
-gpu_join = GpuJoin()
+gpu_join = GpuJoin(None)
 
 
 class GpuSplit(HideC, Split):
