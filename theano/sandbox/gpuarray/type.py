@@ -52,6 +52,11 @@ class GpuArrayType(Type):
             raise TypeError("Unsupported dtype for %s: %s" %
                             (self.__class__.__name__, self.dtype))
 
+    def __real_context(self):
+        return get_context(self.context)
+
+    real_context = property(__real_context)
+
     def __str__(self):
         return "GpuArrayType(%s, %s)" % (self.dtype, self.broadcastable)
 
@@ -65,18 +70,18 @@ class GpuArrayType(Type):
                                 "got %d (dtype %s)." %
                                 (self, self.typecode, self.dtype,
                                  data.typecode, str(data.dtype)))
-            if self.context != data.context:
+            if self.real_context != data.context:
                 raise TypeError("data context does not match type context")
             # fallthrough to ndim check
         elif allow_downcast:
             data = gpuarray.array(data, dtype=self.typecode, copy=False,
                                   ndmin=len(self.broadcastable),
-                                  context=self.context)
+                                  context=self.real_context)
         else:
             up_dtype = scalar.upcast(self.dtype, data.dtype)
             if up_dtype == self.dtype:
                 data = gpuarray.array(data, dtype=self.dtype, copy=False,
-                                      context=self.context)
+                                      context=self.real_context)
             else:
                 raise TypeError("%s cannot store a value of dtype %s "
                                 "without risking loss of precision." %
@@ -329,7 +334,7 @@ class GpuArraySharedVariable(_operators, SharedVariable):
 
     def set_value(self, value, borrow=False):
         self.container.value = pygpu.gpuarray.array(value, copy=(not borrow),
-                                                    context=self.type.context)
+                                                    context=self.type.real_context)
 
     def __getitem__(self, *args):
         return _operators.__getitem__(self, *args)
@@ -352,7 +357,7 @@ def gpuarray_shared_constructor(value, name=None, strict=False,
         broadcastable = (False,) * value.ndim
     type = GpuArrayType(value.dtype, broadcastable, context=context)
     deviceval = pygpu.gpuarray.array(value, copy=(not borrow),
-                                     context=type.context)
+                                     context=type.real_context)
     return GpuArraySharedVariable(type=type, value=deviceval, name=name,
                                   strict=strict)
 
