@@ -334,7 +334,7 @@ CudaNdarray_HOST_STRIDES(%(out)s)[0], CudaNdarray_HOST_STRIDES(%(out)s)[1],
                    W=W, fail=sub['fail'], name=nodename)
 
     def c_code_cache_version(self):
-        return (11,)
+        return (11, 4)
 
     def grad(self, inputs, grads):
         o, W, h, inputIdx, outputIdx = inputs
