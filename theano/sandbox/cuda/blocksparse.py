@@ -253,6 +253,15 @@ if (CudaNdarray_CopyFromCudaNdarray(%(out)s, %(o)s)) {
 """ % dict(out=out, o=o, fail=sub['fail'])
 
         return res + """
+if (CudaNdarray_HOST_DIMS(%(W)s, 2) != CudaNdarray_HOST_DIMS(%(h)s, 2) ||
+    CudaNdarray_HOST_DIMS(%(W)s, 3) != CudaNdarray_HOST_DIMS(%(o)s, 2) ||
+    CudaNdarray_HOST_DIMS(%(h)s, 1) != PyArray_DIM(%(inputIdx)s, 1) ||
+    CudaNdarray_HOST_DIMS(%(o)s, 1) != PyArray_DIM(%(outputIdx)s, 1) ||
+    CudaNdarray_HOST_DIMS(%(h)s, 0) != PyArray_DIM(%(inputIdx)s, 0) ||
+    CudaNdarray_HOST_DIMS(%(h)s, 0) != PyArray_DIM(%(outputIdx)s, 0)) {
+    PyErr_SetString(PyExc_ValueError, "Mismatched dimensions on input");
+    %(fail)s
+}
         if (%(name)s_prep(CudaNdarray_HOST_DIMS(%(o)s)[0],
                           CudaNdarray_HOST_DIMS(%(h)s)[1],
                           CudaNdarray_HOST_DIMS(%(o)s)[1],
