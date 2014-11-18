@@ -3,6 +3,9 @@ from itertools import izip
 from copy import copy, deepcopy
 
 import numpy
+
+from nose import with_setup
+
 import theano
 import theano.tensor as T
 from theano.tensor import TensorType
@@ -98,6 +101,11 @@ def fake_shared(value, name=None, strict=False, allow_downcast=None, **kwargs):
                      allow_downcast=allow_downcast, **kwargs)
         except TypeError:
             continue
+    raise ValueError("can't convert to shared")
+
+
+def fake_shared2(value, **kwargs):
+    return gpuarray_shared_constructor(value, context=test_ctx, **kwargs)
 
 
 def rand_gpuarray(*shape, **kwargs):
@@ -140,6 +148,9 @@ def makeTester(name, op, gpu_op, cases, checks=None, mode_gpu=mode_with_gpu,
         def run_case(self, testname, inputs):
             inputs_ref = [theano.shared(inp) for inp in inputs]
             inputs_tst = [theano.shared(inp) for inp in inputs]
+
+            for i in inputs_tst:
+                i.tag.context = test_ctx
 
             try:
                 node_ref = safe_make_node(self.op, *inputs_ref)
@@ -212,17 +223,33 @@ def makeTester(name, op, gpu_op, cases, checks=None, mode_gpu=mode_with_gpu,
     return Checker
 
 
+__old_context = None
+
+def set_default():
+    assert test_ctx is not None
+    try:
+        __old_context = get_context(None)
+    except ValueError:
+        pass
+    reg_context(None, test_ctx_real)
+
+
+def clear_default():
+    assert test_ctx is not None
+    _unreg_context(None)
+    if __old_context is not None:
+        reg_context(None, __old_context)
+
+
 class GPUMixin(object):
     "Sets up the test context as the default context"
     def setUp(self):
-        reg_context(None, test_ctx_real)
+        set_default()
         super(GPUMixin, self).setUp()
 
     def tearDown(self):
         super(GPUMixin, self).tearDown()
-        assert test_ctx is not None
-        _unreg_context(None)
-
+        clear_default()
 
 def test_transfer_cpu_gpu():
     a = T.fmatrix('a')
@@ -357,9 +384,13 @@ def test_shape():
 
 def test_gpu_contiguous():
     a = T.fmatrix('a')
+    a.tag.context = test_ctx
     i = T.iscalar('i')
+    i.tag.context = test_ctx
     a_val = numpy.asarray(numpy.random.rand(4, 5), dtype='float32')
-    f = theano.function([a, i], gpu_contiguous(a[::i]),
+    sl = a[::i]
+    sl.tag.context = test_ctx
+    f = theano.function([a, i], gpu_contiguous(sl),
                         mode=mode_with_gpu)
     topo = f.maker.fgraph.toposort()
     assert any([isinstance(node.op, GpuSubtensor) for node in topo])
@@ -413,6 +444,7 @@ class G_Join_and_Split(test_basic.T_Join_and_Split):
         assert numpy.allclose(o2, m.get_value(borrow=True)[2:])
 
 
+@with_setup(set_default, clear_default)
 def test_gpujoin_gpualloc():
     a = T.fmatrix('a')
     a_val = numpy.asarray(numpy.random.rand(4, 5), dtype='float32')
@@ -449,7 +481,9 @@ def test_gpueye():
         if M is None:
             M = N
         N_symb = T.iscalar()
+        N_symb.tag.context = test_ctx
         M_symb = T.iscalar()
+        M_symb.tag.context = test_ctx
         k_symb = numpy.asarray(0)
         out = T.eye(N_symb, M_symb, k_symb, dtype=dtype)
         f = theano.function([N_symb, M_symb],
@@ -469,19 +503,16 @@ def test_gpueye():
 
 
 def xtest_gpueye_context():
-    ctx = pygpu.init('opencl0:0')
-    reg_context('dev2', ctx, 'opencl0:0')
     Ns = T.iscalar()
     Ms = T.iscalar()
     ks = numpy.asarray(0)
 
-    e = GpuEye('float32', context='dev2')(Ns, Ms, ks)
+    e = GpuEye('float32', context='test2')(Ns, Ms, ks)
 
     f = theano.function([Ns, Ms], e)
 
     result = numpy.array(f(5, 5))
 
-    import pdb; pdb.set_trace()
 
 def test_hostfromgpu_shape_i():
     """
@@ -492,6 +523,7 @@ def test_hostfromgpu_shape_i():
                                 'local_dot22_to_dot22scalar',
                                 'specialize')
     a = T.fmatrix('a')
+    a.tag.context = test_ctx
     ca = theano.sandbox.gpuarray.type.GpuArrayType('float32', (False, False),
                                                    context=test_ctx)()
     av = numpy.asarray(numpy.random.rand(5, 4), dtype='float32')
