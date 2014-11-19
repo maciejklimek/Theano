@@ -6,21 +6,29 @@ from theano.tests.unittest_tools import SkipTest
 from theano.tensor.tests.test_elemwise import (test_Broadcast, test_DimShuffle,
                                                test_CAReduce, T_reduce_dtype)
 
-from .test_basic_ops import (mode_with_gpu, rand_gpuarray, test_ctx_real,
-                             GPUMixin)
+from .test_basic_ops import (mode_with_gpu, rand_gpuarray, test_ctx,
+                             test_ctx_real, GPUMixin)
 from ..elemwise import (GpuElemwise, GpuDimShuffle,
                         GpuCAReduceCuda, GpuCAReduceCPY)
 from ..type import GpuArrayType
 
 from pygpu.array import gpuarray
 
+@staticmethod
+def fake_type(dtype, broadcastable):
+    return GpuArrayType(dtype, broadcastable, context=test_ctx)
+
+@staticmethod
+def fake_op(scalar_op, inplace_pattern=None):
+    return GpuElemwise(scalar_op, inplace_pattern=inplace_pattern,
+                       context=test_ctx)
 
 # This is acutally a test for GpuElemwise
-class test_gpu_Broadcast(GPUMixin, test_Broadcast):
-    op = GpuElemwise
-    type = GpuArrayType
-    cop = GpuElemwise
-    ctype = GpuArrayType
+class test_gpu_Broadcast(test_Broadcast):
+    op = fake_op
+    type = fake_type
+    cop = fake_op
+    ctype = fake_type
     # The order is important
     linkers = [gof.PerformLinker, gof.CLinker]
 

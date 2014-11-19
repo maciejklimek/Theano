@@ -353,7 +353,8 @@ def max_inputs_to_GpuElemwise(node):
 # TODO: This is broken: doesn't transfer the context
 gpu_local_elemwise_fusion = tensor.opt.local_elemwise_fusion_op(
     GpuElemwise,
-    max_inputs_to_GpuElemwise)
+    max_inputs_to_GpuElemwise,
+    maker=lambda node, C: GpuElemwise(C, context=node.op.context))
 optdb.register('gpua_elemwise_fusion',
                tensor.opt.FusionOptimizer(gpu_local_elemwise_fusion), 71.00,
                'fast_run', 'fusion', 'local_elemwise_fusion', 'gpuarray')
@@ -796,14 +797,11 @@ def local_scan_to_gpua(node, ctx):
     _cmodule_key = gof.CLinker().cmodule_key_(local_fgraph, [])
     info['gpu_hash'] = hash(_cmodule_key)
 
-    # TODO: check if scan is using the type correctly
-    nw_op = scan_op.Scan(scan_ins, scan_outs, info,
-                         typeConstructor=GpuArrayType).make_node(*nw_ins)
+    nw_op = scan_op.Scan(scan_ins, scan_outs, info).make_node(*nw_ins)
     return nw_op.outputs
 
 optdb.register('gpua_scanOp_make_inplace',
-               scan_opt.ScanInplaceOptimizer(typeConstructor=GpuArrayType,
-                                             gpua_flag=True),
+               scan_opt.ScanInplaceOptimizer(gpua_flag=True),
                75,
                'gpua',
                'fast_run',

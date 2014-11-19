@@ -6,24 +6,29 @@ import theano
 from theano.tests import unittest_tools as utt
 import theano.sandbox.rng_mrg
 
-from ..basic_ops import gpu_from_host, GpuFromHost, HostFromGpu
+from ..basic_ops import GpuFromHost, HostFromGpu
 
 from ..elemwise import GpuElemwise
 
-from .test_basic_ops import mode_with_gpu
+from .test_basic_ops import mode_with_gpu, test_ctx
 
 class T_Scan(TestCase):
     def setUp(self):
         utt.seed_rng()
+        super(T_Scan, self).setUp()
 
     def test_one_sequence_one_output_weights_gpu1(self):
         def f_rnn(u_t, x_tm1, W_in, W):
             return u_t * W_in + x_tm1 * W
 
         u = theano.tensor.fvector('u')
+        u.tag.context = test_ctx
         x0 = theano.tensor.fscalar('x0')
+        x0.tag.context = test_ctx
         W_in = theano.tensor.fscalar('win')
+        W_in.tag.context = test_ctx
         W = theano.tensor.fscalar('w')
+        W.tag.context = test_ctx
 
         mode = mode_with_gpu.excluding('InputToGpuOptimizer')
         output, updates = theano.scan(f_rnn,
@@ -35,7 +40,7 @@ class T_Scan(TestCase):
                                       go_backwards=False,
                                       mode=mode)
 
-        output = gpu_from_host(output)
+        output = GpuFromHost(test_ctx)(output)
         f2 = theano.function([u, x0, W_in, W],
                              output,
                              updates=updates,
@@ -96,9 +101,13 @@ class T_Scan(TestCase):
             return u_t * W_in + x_tm1 * W
 
         u = theano.tensor.fvector('u')
+        u.tag.context = test_ctx
         x0 = theano.tensor.fscalar('x0')
+        x0.tag.context = test_ctx
         W_in = theano.tensor.fscalar('win')
+        W_in.tag.context = test_ctx
         W = theano.tensor.fscalar('w')
+        W.tag.context = test_ctx
         output, updates = theano.scan(f_rnn,
                                       u,
                                       x0,
@@ -158,9 +167,13 @@ class T_Scan(TestCase):
                     theano.tensor.cast(u_t + x_tm1, 'int64'))
 
         u = theano.tensor.fvector('u')
+        u.tag.context = test_ctx
         x0 = theano.tensor.fscalar('x0')
+        x0.tag.context = test_ctx
         W_in = theano.tensor.fscalar('win')
+        W_in.tag.context = test_ctx
         W = theano.tensor.fscalar('w')
+        W.tag.context = test_ctx
         output, updates = theano.scan(f_rnn,
                                       u,
                                       [x0, None],

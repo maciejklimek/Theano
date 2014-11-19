@@ -70,6 +70,10 @@ class GpuElemwise(HideC, Elemwise):
                           name=name, nfunc_spec=nfunc_spec)
         self.context = context
 
+    def make_new_inplace(self, scalar_op, inplace_pattern):
+        return GpuElemwise(self, scalar_op, inplace_pattern=inplace_pattern,
+                           name=self.name, context=self.context)
+
     def __eq__(self, other):
         return (type(self) == type(other) and
                 Elemwise.__eq__(self, other) and
