@@ -8,7 +8,7 @@ except ImportError:
     pass
 
 from theano import tensor, scalar, gof
-from theano.compile import optdb
+from theano.compile import optdb, ops
 from theano.gof import (local_optimizer, EquilibriumDB,
                         SequenceDB, ProxyDB,
                         Optimizer, toolbox,
@@ -287,12 +287,12 @@ def local_gpua_dimshuffle(node):
 
 
 @register_opt('fast_compile')
-@op_lifter([tensor.SpecifyShape])
+@op_lifter([ops.SpecifyShape])
 def local_gpua_specifyShape(node):
     if isinstance(node.inputs[0].type, GpuArrayType):
         return
     inp = [gpu_from_host(node.inputs[0])] + node.inputs[1:]
-    return tensor.specify_shape(*inp)
+    return ops.specify_shape(*inp)
 
 
 @register_opt('fast_compile')
