@@ -22,7 +22,6 @@ class Loop(gof.Op):
     """
     def __init__(self, inputs, outputs, others=None,
                  input_hints=None, output_hints=None):
-        self._i = theano.shared(numpy.asarray(0, dtype='uint64'))
         if others is None:
             others = []
         if not isinstance(outputs, list):
@@ -75,9 +74,10 @@ class Loop(gof.Op):
             assert len(self.output_hints) == len(self.outputs)
 
     def make_func(self):
+        i = theano.shared(numpy.asarray(0, dtype='uint64'))
         shared_g = [var.type() for var in self.shared]
-        inputs_g = [inp[self._i] for inp in self.input_hints]
-        outputs_g = [theano.tensor.set_subtensor(out_h[self._i], out)
+        inputs_g = [inp[i] for inp in self.input_hints]
+        outputs_g = [theano.tensor.set_subtensor(out_h[i], out)
                      for out_h, out in zip(self.output_hints, self.outputs)]
 
         new = rebuild_collect_shared(outputs_g,
@@ -93,17 +93,17 @@ class Loop(gof.Op):
         assert len(new_inputs) == (len(self.inputs) + len(self.others) +
                                    len(self.output_models) + len(self.shared))
         assert len(new_outputs) == len(self.outputs)
-        assert shared_inputs == [self._i]
+        assert shared_inputs == [i]
 
         f_inputs = new_inputs
         f_outputs = new_outputs
 
         fn = function(
             f_inputs, f_outputs,
-            updates=[(self._i, self._i+numpy.asarray(1, dtype='int64'))],
+            updates=[(i, i+numpy.asarray(1, dtype='int64'))],
             mode=Mode(linker=VM_Linker(allow_gc=False, use_cloop=True)))
 
-        return fn, f_inputs, f_outputs
+        return fn, i, f_inputs, f_outputs
 
     def __eq__(self, other):
         #TODO: recognize a copy
@@ -154,11 +154,10 @@ class Loop(gof.Op):
 
     def make_thunk(self, node, storage_map, compute_map, no_recycling):
         # XXX: maybe do some hocus pocus to share storage_map
-
         # Although this wouldn't be safe to share for more than one
         # graph we would just have to return a unique thunk from here.
         if not hasattr(self, "fn"):
-            self.fn = self.make_func()
+            self.fn self._i, _, _ = self.make_func()
 
         ret = super(Loop, self).make_thunk(node, storage_map,
                                            compute_map, no_recycling)
