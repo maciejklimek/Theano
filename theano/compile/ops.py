@@ -221,14 +221,7 @@ class Shape(gof.Op):
 
     check_input = False
 
-    def __hash__(self):
-        return hash(type(self))
-
-    def __eq__(self, other):
-        return type(self) == type(other)
-
-    def __str__(self):
-        return self.__class__.__name__
+    __props__ = ()
 
     def make_node(self, x):
         # Must work for all type that have a shape attribute.
@@ -701,14 +694,7 @@ class SpecifyShape(gof.Op):
     # the output variable is %(oname)s.
     c_code_and_version = {}
 
-    def __hash__(self):
-        return hash(type(self))
-
-    def __eq__(self, other):
-        return type(self) == type(other)
-
-    def __str__(self):
-        return self.__class__.__name__
+    __props__ = ()
 
     def make_node(self, x, shape):
         if not isinstance(x, gof.Variable):
