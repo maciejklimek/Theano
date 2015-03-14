@@ -47,22 +47,23 @@ class MissingInputError(Exception):
 
 class FunctionGraph(utils.object2):
     """ WRITEME
-    A FunctionGraph represents a subgraph bound by a set of input variables and a
-    set of output variables, ie a subgraph that specifies a theano function.
-    The inputs list should contain all the inputs
-    on which the outputs depend. Variables of type Constant are
-    not counted as inputs.
+    A FunctionGraph represents a subgraph bound by a set of input
+    variables and a set of output variables, ie a subgraph that
+    specifies a theano function.  The inputs list should contain all
+    the inputs on which the outputs depend. Variables of type Constant
+    are not counted as inputs.
 
-    The FunctionGraph supports the replace operation which allows to replace a
-    variable in the subgraph by another, e.g. replace (x + x).out by (2
-    * x).out. This is the basis for optimization in theano.
+    The FunctionGraph supports the replace operation which allows to
+    replace a variable in the subgraph by another, e.g. replace (x +
+    x).out by (2 * x).out. This is the basis for optimization in
 
     This class is also reponsible for verifying that a graph is valid
     (ie, all the dtypes and broadcast patterns are compatible with the
-    way the the Variables are used) and for annotating the Variables with
-    a .clients field that specifies which Apply nodes use the variable.
-    The .clients field combined with the .owner field and the Apply nodes'
-    .inputs field allows the graph to be traversed in both directions.
+    way the the Variables are used) and for annotating the Variables
+    with a .clients field that specifies which Apply nodes use the
+    variable.  The .clients field combined with the .owner field and
+    the Apply nodes' .inputs field allows the graph to be traversed in
+    both directions.
 
     It can also be extended with new features using
     FunctionGraph.attach_feature(<toolbox.Feature instance>).
@@ -78,22 +79,23 @@ class FunctionGraph(utils.object2):
 
     def __init__(self, inputs, outputs, features=None, clone=True):
         """
-        Create an FunctionGraph which operates on the subgraph bound by the inputs and
-        outputs sets.
+        Create an FunctionGraph which operates on the subgraph bound
+        by the inputs and outputs sets.
 
-        This class keeps a pointer to the inputs and outputs, and also modifies
-        them.
+        This class keeps a pointer to the inputs and outputs, and also
+        modifies them.
 
-        #TODO: document what variables are[not] set in the FunctionGraph when a feature
-        is added via the constructor.  How constructed is the FunctionGraph?
+        TODO: document what variables are[not] set in the
+        FunctionGraph when a feature is added via the constructor.
+        How constructed is the FunctionGraph?
 
-        Note: the intermediate nodes between 'inputs' and 'outputs' are not explicitely
-        passed.
-         
+        Note: the intermediate nodes between 'inputs' and 'outputs'
+        are not explicitely passed.
+
         :param inputs: inputs nodes of the graph, usually declared by the user
         :param outputs: outputs nodes of the graph.
         :param clone: If true, we will clone the graph. This is
-        useful to remove the constant cache problem.
+          useful to remove the constant cache problem.
 
         """
         if clone:
@@ -125,7 +127,7 @@ class FunctionGraph(utils.object2):
 
         for input in self.inputs:
             if input.owner is not None:
-                raise ValueError("One of the provided inputs is the output of"
+                raise ValueError("One of the provided inputs is the output of "
                                  "an already existing node. "
                                  "If that is okay, either discard that "
                                  "input's owner or use graph.clone.")
@@ -751,7 +753,7 @@ class FunctionGraph(utils.object2):
                 del d[attr]
         # The class Updater take fct as parameter and they are lambda function, so unpicklable.
 
-        # execute_callbacks_times have reference to optimizer, and they can't 
+        # execute_callbacks_times have reference to optimizer, and they can't
         # be pickled as the decorators with parameters aren't pickable.
         if "execute_callbacks_times" in d:
             del d["execute_callbacks_times"]
