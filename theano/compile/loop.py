@@ -105,6 +105,39 @@ class Loop(gof.Op):
 
         return fn, i, f_inputs, f_outputs
 
+    def make_shape_graph(self, input_shapes):
+        # Here input_shapes doesn't contain the shapes of the output
+        # models, that would be silly.
+        allinps = self.inputs + self.others
+        assert len(input_shapes) == len(allinps)
+
+        # This is a bit of a hackish usage of ShapeFeature, but it
+        # simplifies things immensely compared to going though a real
+        # FunctionGraph
+        sf = ShapeFeature()
+        sf.on_attach(gof.FunctionGraph([], []))
+
+        for i, i_s in zip(allinps, input_shapes):
+            sf.set_shape(i, i_s)
+
+        def local_traverse(out):
+            if out in sf.shape_of:
+                return
+            elif out.owner is None:
+                sf.init_r(out)
+            else:
+                for i in out.owner.inputs:
+                    if not i in sf.shape_of:
+                        local_traverse(i)
+                # ShapeFeature does not actually use the fgraph
+                sf.on_import(None, out.owner, reason='')
+        ret = []
+        for o in self.outputs:
+            local_traverse(o)
+            ret.append(sf.shape_of[o])
+        # XXX Maybe clone return nodes?
+        return ret
+
     def __eq__(self, other):
         #TODO: recognize a copy
         return self is other
@@ -152,6 +185,10 @@ class Loop(gof.Op):
                          [n_iters] + list(vars) + self.shared,
                          [o.clone() for o in self.output_hints])
 
+    def infer_shape(self inputs, inputs_shapes):
+        os = input_shapes[len(self.inputs_hints) + len(self.others):]
+        return os[:len(self.output_hints)]
+
     def make_thunk(self, node, storage_map, compute_map, no_recycling):
         # XXX: maybe do some hocus pocus to share storage_map
         # Although this wouldn't be safe to share for more than one
@@ -171,6 +208,24 @@ class Loop(gof.Op):
         assert len(self.fn.outputs) == len(outputs)
         for o, c in zip(outputs, self.fn.outputs):
             o[0] = c.storage[0]
+
+
+def loop_fn(n_steps, fn, inputs, others=None, output_hints=None):
+    if others is None:
+        others = []
+    inner_inputs = [i[0] for i in inputs]
+    inner_outputs = fn(inner_inputs + others)
+
+    lop = Loop(inner_inputs, inner_outputs, others, input_hints=inputs,
+               output_hints=output_hints)
+
+    if output_hints is None:
+        out_shp = lop.make_shape_graph([[i.shape(j) for j in range(i.ndim)]
+                                        for i in inner_inputs + others])
+        output_hints = [tensor.zeros(*((n_steps,) + shp)) for shp in out_shp]
+        assert all(loi.type == oi.type for lio, io in zip(lop.output_hints,
+                                                          output_hints))
+    return lop(*((n_steps,) + inputs + others + output_hints))
 
 # Since Loop contains a Theano compiled function, we should let
 # DebugMode know about it
