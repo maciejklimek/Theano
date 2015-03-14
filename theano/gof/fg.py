@@ -491,11 +491,6 @@ class FunctionGraph(utils.object2):
             assert (node == 'output' and self.outputs[i] is r) or (node.inputs[i] is r)
             self.change_input(node, i, new_r, reason=reason)
 
-        # sometimes the following is triggered.  If you understand why, please explain to James.
-        # He's curious... -JB20090331
-        #if len(r.clients) != 0:
-        #    print >> sys.stderr, "WARNING: CLIENTS LEFT AFTER REPLACE", r, r.clients
-
     def replace_all(self, pairs, reason=None):
         """WRITEME"""
         for r, new_r in pairs:
