@@ -1,8 +1,13 @@
+import numpy
+
 import theano
 from theano import gof
-from theano.compile.function_module import orig_function
 from theano.compile import SharedVariable, rebuild_collect_shared
-from theano.gof import ops_with_inner_function
+from theano.compile.ops import specify_shape
+from theano.compile.function_module import orig_function
+
+from theano.tensor import opt
+from theano.tensor.opt import ShapeFeature
 
 
 class Loop(gof.Op):
@@ -73,21 +78,21 @@ class Loop(gof.Op):
         shared_g = [var.type() for var in self.shared]
         inputs_g = [inp[self._i] for inp in self.input_hints]
         outputs_g = [theano.tensor.set_subtensor(out_h[self._i], out)
-                     for out_h, out in zip(self.output_hints, outputs)]
+                     for out_h, out in zip(self.output_hints, self.outputs)]
 
         new = rebuild_collect_shared(outputs_g,
-                                     inputs=(inputs + others +
+                                     inputs=(self.inputs + self.others +
                                              self.output_models +
                                              self.shared),
-                                     replace=dict(zip(self.shared + inputs,
+                                     replace=dict(zip(self.shared + self.inputs,
                                                       shared_g + inputs_g)),
                                      copy_inputs_over=False,
                                      rebuild_strict=True)
         (new_inputs, new_outputs,
          [clone_d, update_d, update_expr, shared_inputs]) = new
-        assert len(new_inputs) == (len(inputs) + len(others) +
-                                   len(output_models) + len(self.shared))
-        assert len(new_outputs) == len(outputs)
+        assert len(new_inputs) == (len(self.inputs) + len(self.others) +
+                                   len(self.output_models) + len(self.shared))
+        assert len(new_outputs) == len(self.outputs)
         assert shared_inputs == [self._i]
 
         f_inputs = new_inputs
@@ -117,12 +122,13 @@ class Loop(gof.Op):
         inputs = vars[:len(self.input_hints)]
         if len(inputs) != len(self.input_hints):
             raise ValueError("Not enough inputs")
-        for oi, ii in zip(inputs, self.inputs_hints):
+        for oi, ii in zip(inputs, self.input_hints):
             if not oi.type == ii.type:
                 raise TypeError("Wrong type for input, expected %s but got %s"
                                 % (ii.type, oi.type))
+        vars = vars[len(self.input_hints):]
         # After that is the others
-        others = vars[len(self.input_hints):len(self.others)]
+        others = vars[:len(self.others)]
         if len(others) != len(self.others):
             raise ValueError("Not enough others")
         for oi, ii in zip(others, self.others):
@@ -131,18 +137,13 @@ class Loop(gof.Op):
                                 % (ii.type, oi.type))
 
         # Finally we have the output buffers
-        outputs = vars[len(self.input_hints)+len(self.others):
-                           len(self.outputs)]
+        outputs = vars[len(self.others):]
         if len(outputs) != len(self.output_hints):
             raise ValueError("Not enough outputs")
         for oi, ii in zip(outputs, self.output_hints):
             if not oi.type == ii.type:
                 raise TypeError("Wrong type for output, expected %s but got %s"
                                 % (ii.type, oi.type))
-
-        if len(vars) > (len(self.inputs_hints) + len(self.others) +
-                        len(self.output_hints)):
-            raise TypeError("Too many arguments for Loop operation")
 
         return gof.Apply(self,
                          # tackle on the end of our inputs the list of
@@ -172,6 +173,6 @@ class Loop(gof.Op):
         for o, c in zip(outputs, self.fn.outputs):
             o[0] = c.storage[0]
 
-# Since OpFromGraph contains a Theano compiled function, we should let
+# Since Loop contains a Theano compiled function, we should let
 # DebugMode know about it
-ops_with_inner_function[OpFromGraph] = 'fn'
+gof.ops_with_inner_function[Loop] = 'fn'
