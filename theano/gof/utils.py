@@ -114,17 +114,50 @@ class MethodNotDefined(Exception):
     """
 
 
-class object2(object):
-    __slots__ = []
-    if 0:
-        def __hash__(self):
-            # this fixes silent-error-prone new-style class behavior
-            if hasattr(self, '__eq__') or hasattr(self, '__cmp__'):
-                raise TypeError("unhashable object: %s" % self)
-            return id(self)
+class MetaObject(type):
+    def __init__(cls, name, bases, dct):
+        props = dct.pop('__props__', None)
+        if props is not None:
+            if not isinstance(props, tuple):
+                raise TypeError("__props__ has to be a tuple")
+            if not all(isinstance(p, str) for p in props):
+                raise TypeError("elements of __props__ have to be strings")
 
-    def __ne__(self, other):
-        return not self == other
+            if '__hash__' not in dct:
+                def __hash__(self):
+                    return hash((type(self),
+                                 tuple(getattr(self, a) for a in props)))
+                dct['__hash__'] = __hash__
+
+            if '__eq__' not in dct:
+                def __eq__(self, other):
+                    return (type(self) == type(other) and
+                            tuple(getattr(self, a) for a in props) ==
+                            tuple(getattr(other, a) for a in props))
+                dct['__eq__'] = __eq__
+
+            if '__str__' not in dct:
+                if len(props) == 0:
+                    def __str__(self):
+                        return "%s" % (self.__class__.__name__,)
+                else:
+                    def __str__(self):
+                        return "%s{%s}" % (
+                            self.__class__.__name__,
+                            ", ".join("%s=%r" % (p, getattr(self, p))
+                                      for p in props))
+                dct['__str__'] = __str__
+
+        return super(MetaObject, cls).__init__(name, bases, dct)
+
+
+# This is done this way for python2/3 compat
+def __ne__(self, other):
+    return not self == other
+object2 = MetaObject('object2', (object,),
+                     {'__slots__': [],
+                      '__ne__': __ne__})
+del __ne__
 
 
 class scratchpad:

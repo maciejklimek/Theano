@@ -255,12 +255,12 @@ Op Example
     import theano
 
     class DoubleOp(theano.Op):
+        # You need to have a recent enough version of theano for __props__
+        # to work. Something after Sept 1st 2014 or release 0.7
         __props__ = ()
 
         def make_node(self, x):
-            # check that the theano version has support for __props__
-            assert hasattr(self, '_props')
-            x = theano.tensor.as_tensor_variable(x)
+             x = theano.tensor.as_tensor_variable(x)
             return theano.Apply(self, [x], [x.type()])
 
         def perform(self, node, inputs, output_storage):
