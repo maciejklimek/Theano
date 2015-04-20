@@ -1892,6 +1892,8 @@ class Cast(UnaryScalarOp):
         return self.ctor(input)
 
     def c_code(self, node, name, (x, ), (z, ), sub):
+        if node.inputs[0].dtype == 'float16' or node.outputs[0] == 'float16':
+            raise NotImplementedError("C code doesn't work for float16")
         return "%s = (%s)%s;" % (z, node.outputs[0].type.dtype_specs()[1], x)
 
     def grad(self, (x, ), (gz, )):
@@ -1915,6 +1917,7 @@ convert_to_uint8 = Cast(uint8, name='convert_to_uint8')
 convert_to_uint16 = Cast(uint16, name='convert_to_uint16')
 convert_to_uint32 = Cast(uint32, name='convert_to_uint32')
 convert_to_uint64 = Cast(uint64, name='convert_to_uint64')
+convert_to_float16 = Cast(float16, name='convert_to_float16')
 convert_to_float32 = Cast(float32, name='convert_to_float32')
 convert_to_float64 = Cast(float64, name='convert_to_float64')
 convert_to_complex64 = Cast(complex64, name='convert_to_complex64')
@@ -1929,6 +1932,7 @@ _cast_mapping = {
            'uint16': convert_to_uint16,
            'uint32': convert_to_uint32,
            'uint64': convert_to_uint64,
+           'float16': convert_to_float16,
            'float32': convert_to_float32,
            'float64': convert_to_float64,
            'complex64': convert_to_complex64,
