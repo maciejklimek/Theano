@@ -78,8 +78,7 @@ def upcast(dtype, *dtypes):
     elif rval == 'float32':
         if keep_float16[0]:
             return 'float16'
-    else:
-        return rval
+    return rval
 
 
 def get_scalar_type(dtype):
