@@ -25,7 +25,6 @@ class GpuCrossentropySoftmaxArgmax1HotWithBias(Op):
     nin = 3
     nout = 3
     __props__ = ()
-    _f16_ok = True
 
     def make_node(self, x, b, y_idx):
         # N.B. won't work when we don't cast y_idx to float anymore
@@ -288,7 +287,6 @@ class GpuCrossentropySoftmax1HotWithBiasDx(Op):
         return Apply(self, [dnll, sm, y_idx], [sm.type()])
 
     def c_code_cache_version(self):
-        # return ()
         return (6,)
 
     def c_headers(self):
@@ -441,14 +439,7 @@ class GpuSoftmax (Op):
     """
     Implement Softmax on the gpu.
     """
-    def __eq__(self, other):
-        return type(self) == type(other)
-
-    def __hash__(self):
-        return hash(type(self))
-
-    def __str__(self):
-        return self.__class__.__name__
+    __props__ = ()
 
     def make_node(self, x):
         x = as_gpuarray_variable(x)
@@ -631,17 +622,7 @@ class GpuSoftmaxWithBias (Op):
     """
     Implement SoftmaxWithBias on the gpu.
     """
-    nin = 2
-    nout = 1
-
-    def __eq__(self, other):
-        return type(self) == type(other)
-
-    def __hash__(self):
-        return hash(type(self))
-
-    def __str__(self):
-        return self.__class__.__name__
+    __props__ = ()
 
     def make_node(self, x, b):
         x = as_gpuarray_variable(x)
