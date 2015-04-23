@@ -269,7 +269,7 @@ class GpuCrossentropySoftmaxArgmax1HotWithBias(Op):
         return sio.getvalue()
 
     def c_code_cache_version(self):
-        return (5,)
+        return (6,)
 
     def c_compiler(self):
         return NVCC_compiler
