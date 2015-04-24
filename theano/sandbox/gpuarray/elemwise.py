@@ -25,7 +25,7 @@ from .basic_ops import (as_gpuarray_variable, HideC,
                         GpuKernelBase, Kernel)
 from .comp import NVCC_compiler
 from .type import GpuArrayType
-
+from .fp16_help import load_w, write_w
 
 
 def _is_scalar(v):
@@ -686,19 +686,6 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
         return Apply(self, [x], [GpuArrayType(ret.outputs[0].dtype,
                                               ret.outputs[0].type.broadcastable)()])
 
-    """
-    This method must be commented, because there's no way
-    to communicate that it's OK to call for + but not for
-    max
-    def perform(self, node, inp, out):
-        x, = inp
-        z, = out
-        # reduce_max is declared but does nothing but
-        # raise NotImplementedError.
-        # We can't call it here anyway because it hasn't
-        # been added to the python bindings yet
-        z[0] = x.reduce_sum(self.reduce_mask)
-    """
     def perform(self, node, inp, out):
         raise MethodNotDefined("")
 
@@ -1144,6 +1131,7 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
         in_dtype = "npy_" + node.inputs[0].dtype
         out_dtype = "npy_" + node.outputs[0].dtype
         acc_dtype = "npy_" + self._acc_dtype(node.inputs[0].dtype)
+        write_out = write_w(node.outputs[0].dtype)
 
         # This code (the code in new_version) is currently ignored.
         # Code produced later in this function is returned instead.
@@ -1192,7 +1180,7 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
 
         if (threadNum == 0)
         {
-            %(z_pos)s = buf[0];
+            %(z_pos)s = %(write_out)s(buf[0]);
         }
             __syncthreads();"""
 
@@ -1230,7 +1218,7 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
         current_version += """
                 if (threadNum == 0)
                 {
-                    %(z_pos)s = buf[0];
+                    %(z_pos)s = %(write_out)s(buf[0]);
                 }
 
             }
@@ -1250,7 +1238,7 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
         current_version += """
                 if (threadNum == 0)
                 {
-                    %(z_pos)s = buf[0];
+                    %(z_pos)s = %(write_out)s(buf[0]);
                 }
             }
         }
@@ -1914,15 +1902,16 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
         in_dtype = "npy_" + node.inputs[0].dtype
         out_dtype = "npy_" + node.outputs[0].dtype
         acc_dtype = "npy_" + self._acc_dtype(node.inputs[0].dtype)
+        load_in = load_w(node.inputs[0].dtype)
 
         if all(i == 1 for i in self.reduce_mask):
             # this kernel is ok for up to a few thousand elements, but
             # it only runs on ONE multiprocessor
             reducebuf = self._k_reduce_buf('Z[0]', node, nodename, sub={})
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0]",
+                                             load_in + "(A[i0])",
                                              {}, True)
-            reduce_init = self._assign_init("A[0]")
+            reduce_init = self._assign_init(load_in + "(A[0])")
             print >> sio, """
             static __global__ void kernel_reduce_ccontig_%(nodename)s(
                     const unsigned int d0,
@@ -1951,9 +1940,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             # it only runs on ONE multiprocessor
             reducebuf = self._k_reduce_buf('Z[0]', node, nodename, sub={})
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0]",
+                                             load_in + "(A[i0 * sA0])",
                                              {}, True)
-            reduce_init = self._assign_init("A[0]")
+            reduce_init = self._assign_init(load_in + "(A[0])")
             print >> sio, """
             static __global__ void kernel_reduce_1_%(nodename)s(
                     const unsigned int d0,
@@ -1982,9 +1971,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             # it only runs on ONE multiprocessor
             reducebuf = self._k_reduce_buf('Z[0]', node, nodename, sub={})
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + i1 * sA1]",
+                                             load_in + "(A[i0 * sA0 + i1 * sA1])",
                                              {}, True)
-            reduce_init = self._assign_init("A[0]")
+            reduce_init = self._assign_init(load_in + "(A[0])")
 
             print >> sio, """
             static __global__ void kernel_reduce_11_%(nodename)s(
@@ -2021,9 +2010,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             # threads per block for each element per row.
 
             N_pattern = ''.join(['1'] * (nd_in - 1))
-            # TODO: is it faster to hardcode sA3, etc. in the later code, rather
-            # than have the for_* variables declare them and the later code use
-            # their names?
+            # TODO: is it faster to hardcode sA3, etc. in the later
+            # code, rather than have the for_* variables declare them
+            # and the later code use their names?
             if nd_in == 2:
                 for_i1 = "for (int i1 = threadIdx.x; i1 < d1; i1 += blockDim.x)"
                 first_i1 = 'threadIdx.x'
@@ -2063,10 +2052,10 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
                                       for i in xrange(nd_in)])
             decl = self._k_decl(node, nodename)
             init = self._k_init(node, nodename)
-            reduce_init = self._assign_init("A[%(first_i3)s * %(sA3)s + %(first_i2)s * %(sA2)s + %(first_i1)s * %(sA1)s + i0 * sA0]" % locals())
+            reduce_init = self._assign_init(load_in + "(A[%(first_i3)s * %(sA3)s + %(first_i2)s * %(sA2)s + %(first_i1)s * %(sA1)s + i0 * sA0])" % locals())
             reduce_fct = self._assign_reduce(
                 node, nodename, "myresult",
-                "A[i3 * sA3 + i2 * sA2 + i1 * sA1 + i0 * sA0]",
+                load_in + "(A[i3 * sA3 + i2 * sA2 + i1 * sA1 + i0 * sA0])",
                 {}, True)
             print >> sio, """
                 %(decl)s{
@@ -2094,9 +2083,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             reducebuf = self._k_reduce_buf('Z[i0 * sZ0 + i2*sZ1]',
                                            node, nodename, sub={})
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + i1 * sA1 + i2 * sA2]",
+                                             load_in + "(A[i0 * sA0 + i1 * sA1 + i2 * sA2])",
                                              {}, True)
-            reduce_init = self._assign_init("A[i0 * sA0 + threadIdx.x * sA1 + i2 * sA2]")
+            reduce_init = self._assign_init(load_in + "(A[i0 * sA0 + threadIdx.x * sA1 + i2 * sA2])")
             print >> sio, """
             static __global__ void kernel_reduce_010_%(nodename)s(
                     const int d0,
@@ -2133,9 +2122,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             """ % locals()
         if self.reduce_mask == (0, 1, 0) or self.reduce_mask == (1, 0):
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "X[a * sX0 + b * sX1 + c * sX2]",
+                                             load_in + "(X[a * sX0 + b * sX1 + c * sX2])",
                                              {}, True)
-            reduce_init = self._assign_init("X[a * sX0 + 0 * sX1 + c * sX2]")
+            reduce_init = self._assign_init(load_in + "(X[a * sX0 + 0 * sX1 + c * sX2])")
             print >> sio, """
             static __global__ void kernel_reduce_010_AD_%(nodename)s(
                     const int A,
@@ -2193,9 +2182,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
                                                     node, nodename,
                                                     'blockDim.x')
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + i1 * sA1 + i2 * sA2]",
+                                             load_in + "(A[i0 * sA0 + i1 * sA1 + i2 * sA2])",
                                              {}, True)
-            reduce_init = self._assign_init("A[i0 * sA0 + 0 * sA1 + i2 * sA2]")
+            reduce_init = self._assign_init(load_in + "(A[i0 * sA0 + 0 * sA1 + i2 * sA2])")
             print >> sio, """
             %(decl)s
             {
@@ -2229,9 +2218,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             #      memory (a segment of a column).
             reducebuf = self._k_reduce_buf('Z[blockIdx.x * sZ0]', node, nodename, sub={})
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + i1 * sA1 + blockIdx.x * sA2]",
+                                             load_in + "(A[i0 * sA0 + i1 * sA1 + blockIdx.x * sA2])",
                                              {}, True)
-            reduce_init = self._assign_init("A[blockIdx.x * sA2]")
+            reduce_init = self._assign_init(load_in + "(A[blockIdx.x * sA2])")
             print >> sio, """
             static __global__ void kernel_reduce_110_%(nodename)s(
                     const int d0,
@@ -2270,9 +2259,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             decl = self._k_decl(node, nodename)
             init = self._k_init(node, nodename)
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + i1 * sA1 + i2 * sA2]",
+                                             load_in + "(A[i0 * sA0 + i1 * sA1 + i2 * sA2])",
                                              {}, True)
-            reduce_init = self._assign_init("A[i1 * sA1 + i2 * sA2]")
+            reduce_init = self._assign_init(load_in + "(A[i1 * sA1 + i2 * sA2])")
             print >> sio, """
             %(decl)s
             {
@@ -2297,9 +2286,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             decl = self._k_decl(node, nodename)
             init = self._k_init(node, nodename)
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + i1 * sA1 + i2 * sA2]",
+                                             load_in + "(A[i0 * sA0 + i1 * sA1 + i2 * sA2])",
                                              {}, True)
-            reduce_init = self._assign_init("A[0]")
+            reduce_init = self._assign_init(load_in + "(A[0])")
             print >> sio, """
             %(decl)s
             {
@@ -2324,9 +2313,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             reducebuf = self._k_reduce_buf('Z[i0 * sZ0 + i1 * sZ1]',
                                            node, nodename, sub={})
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + i1 * sA1 + i2 * sA2]",
+                                             load_in + "(A[i0 * sA0 + i1 * sA1 + i2 * sA2])",
                                              {}, True)
-            reduce_init = self._assign_init("A[i0 * sA0 + i1 * sA1]")
+            reduce_init = self._assign_init(load_in + "(A[i0 * sA0 + i1 * sA1])")
             print >> sio, """
             static __global__ void kernel_reduce_001_%(nodename)s(
                     const int d0,
@@ -2367,9 +2356,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             decl = self._k_decl(node, nodename)
             init = self._k_init(node, nodename)
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + i1 * sA1 + i2 * sA2 + i3 * sA3]",
+                                             load_in + "(A[i0 * sA0 + i1 * sA1 + i2 * sA2 + i3 * sA3])",
                                              {}, True)
-            reduce_init = self._assign_init("A[i0 * sA0 + i1 * sA1]")
+            reduce_init = self._assign_init(load_in + "(A[i0 * sA0 + i1 * sA1])")
             print >> sio, """
             %(decl)s
             {
@@ -2400,9 +2389,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             decl = self._k_decl(node, nodename)
             init = self._k_init(node, nodename)
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + i1 * sA1 + i2 * sA2 + i3 * sA3]",
+                                             load_in + "(A[i0 * sA0 + i1 * sA1 + i2 * sA2 + i3 * sA3])",
                                              {}, True)
-            reduce_init = self._assign_init("A[i0 * sA0 + i2 * sA2]")
+            reduce_init = self._assign_init(load_in + "(A[i0 * sA0 + i2 * sA2])")
             print >> sio, """
             %(decl)s
             {
@@ -2431,9 +2420,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             decl = self._k_decl(node, nodename)
             init = self._k_init(node, nodename)
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + i1 * sA1 + i2 * sA2 + i3 * sA3]",
+                                             load_in + "(A[i0 * sA0 + i1 * sA1 + i2 * sA2 + i3 * sA3])",
                                              {}, True)
-            reduce_init = self._assign_init("A[0]")
+            reduce_init = self._assign_init(load_in + "(A[0])")
             print >> sio, """
             %(decl)s
             {
@@ -2457,9 +2446,9 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
             reducebuf = self._k_reduce_buf('Z[blockIdx.x*sZ0]',
                                            node, nodename, sub={})
             reduce_fct = self._assign_reduce(node, nodename, "myresult",
-                                             "A[i0 * sA0 + blockIdx.x * sA1 + i2 * sA2 + i3 * sA3]",
+                                             load_in + "(A[i0 * sA0 + blockIdx.x * sA1 + i2 * sA2 + i3 * sA3])",
                                              {}, True)
-            reduce_init = self._assign_init("A[blockIdx.x * sA1]")
+            reduce_init = self._assign_init(load_in + "(A[blockIdx.x * sA1])")
             print >> sio, """
             static __global__ void kernel_reduce_1011_%(nodename)s(
                     const unsigned int d0,
