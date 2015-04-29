@@ -60,6 +60,7 @@ def as_C_string_const(s):
 class GpuElemwise(HideC, Elemwise):
     nin = property(lambda self: self.scalar_op.nin)
     nout = property(lambda self: self.scalar_op.nout)
+    _f16_ok = True
 
     def __str__(self):
         if self.name is not None:
@@ -474,6 +475,8 @@ class SupportCodeError(Exception):
 
 
 class GpuDimShuffle(HideC, DimShuffle):
+    _f16_ok = True
+
     def make_node(self, input):
         res = DimShuffle.make_node(self, input)
         otype = GpuArrayType(dtype=res.outputs[0].type.dtype,
@@ -601,8 +604,8 @@ class GpuCAReduceCuda(HideC, CAReduceDtype):
 
     pre_scalar_op: if present, must be a scalar op with only 1
     input. We will execute it on the input value before reduction.
-
     """
+    _f16_ok = True
 
     def __init__(self, scalar_op, axis=None,
                  reduce_mask=None, dtype=None, acc_dtype=None,
