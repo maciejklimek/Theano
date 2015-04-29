@@ -296,8 +296,12 @@ class GpuArrayConstant(_operators, Constant):
     def __str__(self):
         if self.name is not None:
             return self.name
-        return "GpuArrayConstant{%s}" % numpy.asarray(self.data)
-
+        try:
+            np_data = numpy.asarray(self.data)
+        except gpuarray.GpuArrayException:
+            np_data = self.data
+        return "GpuArrayConstant{%s}" % np_data
+ù
 
 GpuArrayType.Constant = GpuArrayConstant
 
