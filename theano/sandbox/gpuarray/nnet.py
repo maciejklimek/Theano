@@ -25,6 +25,7 @@ class GpuCrossentropySoftmaxArgmax1HotWithBias(Op):
     nin = 3
     nout = 3
     __props__ = ()
+    _f16_ok = True
 
     def make_node(self, x, b, y_idx):
         # N.B. won't work when we don't cast y_idx to float anymore
@@ -279,6 +280,7 @@ class GpuCrossentropySoftmax1HotWithBiasDx(Op):
     nin = 3
     nout = 1
     __props__ = ()
+    _f16_ok = True
 
     def make_node(self, dnll, sm, y_idx):
         dnll = as_gpuarray_variable(dnll)
