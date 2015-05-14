@@ -2605,6 +2605,7 @@ class GpuCAReduceCPY(GpuKernelBase, HideC, CAReduceDtype):
         nd_out = node.outputs[0].ndim
         code = """
         size_t gs = 1;
+        size_t ls;
         unsigned int n = 1;
         unsigned int proxy_dim[%(nd_in)s];
         unsigned int proxy_off;
@@ -2668,7 +2669,7 @@ class GpuCAReduceCPY(GpuKernelBase, HideC, CAReduceDtype):
         # data in the proper type.
         code += """
         args[0] = &n;
-        args[1] = &tmp->ga;
+        args[1] = tmp->ga.data;
 """ % dict(output=output)
 
         p = 2
@@ -2683,7 +2684,7 @@ class GpuCAReduceCPY(GpuKernelBase, HideC, CAReduceDtype):
                 code += "gs *= %(input)s->ga.dimensions[%(i)s];" % dict(input=input, i=i)
 
         code += """
-        args[%(p)s] = &%(input)s->ga;
+        args[%(p)s] = %(input)s->ga.data;
         proxy_off = %(input)s->ga.offset;
         args[%(p)s+1] = &proxy_off;
 """ % dict(p=p, input=input)
@@ -2699,7 +2700,8 @@ class GpuCAReduceCPY(GpuKernelBase, HideC, CAReduceDtype):
         code += """
         if (gs == 0) gs = 1;
         n /= gs;
-        err = GpuKernel_call(&%(k_var)s, 0, %(ls)s, gs, args);
+        ls = %(ls)s;
+        err = GpuKernel_call(&%(k_var)s, 1, &ls, &gs, 0, args);
         if (err != GA_NO_ERROR) {
             PyErr_Format(PyExc_RuntimeError,
                          "gpuarray error: GpuCAReduceCPY: %%s.",
@@ -2729,7 +2731,7 @@ class GpuCAReduceCPY(GpuKernelBase, HideC, CAReduceDtype):
         return code
 
     def c_code_cache_version(self):
-        return (0, self.GpuKernelBase_version)
+        return (1, self.GpuKernelBase_version)
 
     def generate_kernel(self, node, odtype, redux):
         if isinstance(self.scalar_op, scalar.basic.Add):
